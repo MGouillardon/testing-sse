@@ -1,4 +1,10 @@
-export type NotificationType = 'new_post' | 'mention' | 'like'
+export const NOTIFICATION_TYPES = ['new_post', 'mention', 'like'] as const
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
+
+export type NotificationEventType =
+  | 'new_notification'
+  | 'notification_read'
+  | 'all_notifications_read'
 
 export interface NotificationData {
   type: NotificationType
@@ -17,4 +23,10 @@ export interface SerializedNotification {
     id: number
     fullName: string | null
   }
+}
+
+export interface NotificationEvent {
+  type: NotificationEventType
+  notification?: SerializedNotification
+  notificationId?: number
 }

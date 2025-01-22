@@ -1,16 +1,25 @@
 import Notification from '#models/notification'
 import transmit from '@adonisjs/transmit/services/main'
-import { NotificationData, SerializedNotification } from '#types/notification'
+import {
+  NotificationData,
+  SerializedNotification,
+  NotificationEvent,
+  NotificationType,
+} from '#types/notification'
 import { Exception } from '@adonisjs/core/exceptions'
 
 export default class NotificationService {
   private serializeNotification(notification: Notification): SerializedNotification {
+    if (!notification.$preloaded.triggeredBy) {
+      throw new Error('triggeredBy relation must be preloaded')
+    }
+
     return {
       id: notification.id,
-      type: notification.type,
+      type: notification.type as NotificationType,
       content: notification.content,
       read: notification.read,
-      createdAt: notification.createdAt.toISO(),
+      createdAt: notification.createdAt?.toISO() || '',
       triggeredBy: {
         id: notification.triggeredBy.id,
         fullName: notification.triggeredBy.fullName,
@@ -18,26 +27,34 @@ export default class NotificationService {
     }
   }
 
+  private broadcast(userId: number, event: NotificationEvent) {
+    transmit.broadcast(`notifications/${userId}`, event as unknown as Record<string, any>)
+  }
+
   public async create(data: NotificationData) {
     try {
-      const notification = await Notification.create(data)
+      const notification = await Notification.create({
+        ...data,
+        read: false,
+      })
+
       await notification.load('triggeredBy')
 
       const serializedNotification = this.serializeNotification(notification)
 
-      transmit.broadcast(`notifications/${data.userId}`, {
+      this.broadcast(data.userId, {
         type: 'new_notification',
         notification: serializedNotification,
       })
 
       return notification
     } catch (error) {
-      throw new Exception('Failed to create notification', { status: 500 })
+      console.error('Notification creation error:', error)
+      throw new Exception('Failed to create notification', {
+        cause: error,
+        status: 500,
+      })
     }
-  }
-
-  public async createMany(notifications: NotificationData[]) {
-    return Promise.all(notifications.map((data) => this.create(data)))
   }
 
   public async markAsRead(notificationId: number, userId: number) {
@@ -50,7 +67,7 @@ export default class NotificationService {
       notification.read = true
       await notification.save()
 
-      transmit.broadcast(`notifications/${userId}`, {
+      this.broadcast(userId, {
         type: 'notification_read',
         notificationId: notification.id,
       })
@@ -68,7 +85,7 @@ export default class NotificationService {
         .where('read', false)
         .update({ read: true })
 
-      transmit.broadcast(`notifications/${userId}`, {
+      this.broadcast(userId, {
         type: 'all_notifications_read',
       })
     } catch (error) {
