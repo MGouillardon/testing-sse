@@ -12,6 +12,15 @@ const inertiaConfig = defineConfig({
    */
   sharedData: {
     errors: (ctx) => ctx.inertia.always(() => ctx.session?.flashMessages.get('errors')),
+    auth: (ctx) => ({
+      user: ctx.auth.user
+        ? {
+            id: ctx.auth.user.id,
+            email: ctx.auth.user.email,
+            fullName: ctx.auth.user.fullName,
+          }
+        : null,
+    }),
   },
 
   /**
@@ -19,8 +28,8 @@ const inertiaConfig = defineConfig({
    */
   ssr: {
     enabled: false,
-    entrypoint: 'inertia/app/ssr.ts'
-  }
+    entrypoint: 'inertia/app/ssr.ts',
+  },
 })
 
 export default inertiaConfig
