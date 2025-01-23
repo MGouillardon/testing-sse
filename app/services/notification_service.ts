@@ -7,6 +7,7 @@ import {
   NotificationType,
 } from '#types/notification'
 import { Exception } from '@adonisjs/core/exceptions'
+import User from '#models/user'
 
 export default class NotificationService {
   private serializeNotification(notification: Notification): SerializedNotification {
@@ -31,32 +32,36 @@ export default class NotificationService {
     transmit.broadcast(`notifications/${userId}`, event as unknown as Record<string, any>)
   }
 
+  // notification_service.ts
   public async create(data: NotificationData) {
     try {
-      const notification = await Notification.create({
-        ...data,
-        read: false,
-      })
+      const users = await User.query().whereNot('id', data.triggeredById).select('id')
 
-      await notification.load('triggeredBy')
+      const notifications = await Promise.all(
+        users.map(async (user) => {
+          const notification = await Notification.create({
+            ...data,
+            userId: user.id,
+            read: false,
+          })
+          await notification.load('triggeredBy')
+          return notification
+        })
+      )
 
-      const serializedNotification = this.serializeNotification(notification)
+      for (const notification of notifications) {
+        this.broadcast(notification.userId, {
+          type: 'new_notification',
+          notification: this.serializeNotification(notification),
+        })
+      }
 
-      this.broadcast(data.userId, {
-        type: 'new_notification',
-        notification: serializedNotification,
-      })
-
-      return notification
+      return notifications
     } catch (error) {
-      console.error('Notification creation error:', error)
-      throw new Exception('Failed to create notification', {
-        cause: error,
-        status: 500,
-      })
+      console.error('Error details:', error)
+      throw new Exception('Failed to create notification', { cause: error })
     }
   }
-
   public async markAsRead(notificationId: number, userId: number) {
     try {
       const notification = await Notification.query()
