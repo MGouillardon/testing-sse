@@ -102,8 +102,13 @@ export default class NotificationService {
         .paginate(page, limit)
 
       return {
-        ...notifications.toJSON(),
         data: notifications.all().map((n) => this.serializeNotification(n)),
+        meta: {
+          currentPage: notifications.currentPage,
+          lastPage: notifications.lastPage,
+          total: notifications.total,
+          links: notifications.getUrlsForRange(),
+        },
       }
     } catch (error) {
       throw new Exception('Failed to fetch notifications', { status: 500 })

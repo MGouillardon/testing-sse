@@ -2,6 +2,7 @@ import { inject } from '@adonisjs/core'
 import { HttpContext } from '@adonisjs/core/http'
 import NotificationService from '#services/notification_service'
 import { NotificationValidator } from '#validators/notification'
+import Notification from '#models/notification'
 
 @inject()
 export default class NotificationsController {
@@ -9,16 +10,16 @@ export default class NotificationsController {
 
   async index({ auth, request, inertia }: HttpContext) {
     const page = request.input('page', 1)
-    const limit = request.input('limit', 15)
+    const limit = 15
 
-    const notifications = await this.notificationService.getNotifications(
-      auth.user!.id,
-      page,
-      limit
-    )
+    const notifications = await Notification.query()
+      .where('user_id', auth.user!.id)
+      .preload('triggeredBy')
+      .orderBy('created_at', 'desc')
+      .paginate(page, limit)
 
     return inertia.render('notifications/index', {
-      notifications: notifications,
+      notifications: notifications.serialize(),
     })
   }
 
